@@ -13,6 +13,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# 取得預設金鑰 (支援 Streamlit Cloud Secrets 與本機環境變數)
+def get_default_api_key():
+    try:
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            return str(st.secrets["GEMINI_API_KEY"]).strip()
+    except Exception:
+        pass
+    return os.environ.get("GEMINI_API_KEY", "").strip()
+
 # 自訂 CSS 樣式
 st.markdown("""
 <style>
@@ -70,12 +79,12 @@ with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/microscope.png", width=64)
     st.markdown("### ⚙️ 系統與產線設定")
     
-    default_key = os.environ.get("GEMINI_API_KEY", "")
+    default_key = get_default_api_key()
     api_key = st.text_input(
         "Google Gemini API Key",
         value=default_key,
         type="password",
-        help="已由系統自動載入您的專屬 API Key"
+        help="支援透過 Streamlit Cloud Secrets 自動載入"
     )
     
     if api_key:
@@ -112,7 +121,7 @@ with st.sidebar:
 st.markdown('<div class="main-title">🔬 光學鏡片瑕疵多模態分析與診斷助手</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">基於 Google Gemini 多模態視覺技術 (Multimodal Vision) 打造之智慧光學產線 AOI 瑕疵快速判定、<b>視覺位置標註 (Bounding Box)</b> 與 SOP 處置系統</div>', unsafe_allow_html=True)
 
-# 影像來源選擇（上傳 vs 內建樣本）
+# 影像來源選擇
 tab_upload, tab_presets = st.tabs(["📂 上傳鏡片照片 / 拍照檢測", "🌟 點選內建預設測試樣本庫 (One-Click Demo)"])
 
 selected_image = None

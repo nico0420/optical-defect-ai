@@ -4,13 +4,28 @@ import json
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageStat
 
-# 載入 .env
+# 載入 .env (若本機存在)
 ENV_FILE = "/Users/nico/ai/.env"
 if os.path.exists(ENV_FILE):
-    with open(ENV_FILE, "r") as f:
-        for line in f:
-            if line.strip().startswith("GEMINI_API_KEY="):
-                os.environ["GEMINI_API_KEY"] = line.strip().split("=", 1)[1]
+    try:
+        with open(ENV_FILE, "r") as f:
+            for line in f:
+                if line.strip().startswith("GEMINI_API_KEY="):
+                    os.environ["GEMINI_API_KEY"] = line.strip().split("=", 1)[1]
+    except Exception:
+        pass
+
+def get_api_key(passed_key=None):
+    """優先順序：傳入參數 -> Streamlit Secrets -> 系統環境變數"""
+    if passed_key and str(passed_key).strip():
+        return str(passed_key).strip()
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            return str(st.secrets["GEMINI_API_KEY"]).strip()
+    except Exception:
+        pass
+    return os.environ.get("GEMINI_API_KEY", "").strip()
 
 SYSTEM_PROMPT = """你是一位專精於光學鏡片製程與 AOI（自動光學檢測）的資深品保工程師。
 你的任務是仔細觀察使用者上傳的鏡片照片，進行客觀、真實的多模態視覺瑕疵診斷。
@@ -99,7 +114,7 @@ def analyze_lens_image(image: Image.Image, machine_id: str = "AOI-01", lens_mode
     """
     分析鏡片照片：調用 Google Gemini 最新多模態視覺模型進行真實推理
     """
-    key = (api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
+    key = get_api_key(api_key)
     
     if key:
         try:
@@ -113,7 +128,7 @@ def analyze_lens_image(image: Image.Image, machine_id: str = "AOI-01", lens_mode
             
             user_prompt = f"""請分析這張機台 [{machine_id}] 拍攝的鏡片影像，型號 [{lens_model}]。請客觀判定是否有任何刮痕、氣泡、油污或裂損。若為正常無瑕疵鏡片，請務必判定為正常良品 (has_defect: false, severity_level: 0)。"""
             
-            # 使用支援的最新視覺模型
+            response = None
             for model_name in ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest']:
                 try:
                     response = client.models.generate_content(
