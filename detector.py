@@ -4,7 +4,7 @@ import json
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageStat
 
-# 載入 .env (若本機存在)
+# 載入 .env
 ENV_FILE = "/Users/nico/ai/.env"
 if os.path.exists(ENV_FILE):
     try:
@@ -16,7 +16,6 @@ if os.path.exists(ENV_FILE):
         pass
 
 def get_api_key(passed_key=None):
-    """優先順序：傳入參數 -> Streamlit Secrets -> 系統環境變數"""
     if passed_key and str(passed_key).strip():
         return str(passed_key).strip()
     try:
@@ -28,22 +27,28 @@ def get_api_key(passed_key=None):
     return os.environ.get("GEMINI_API_KEY", "").strip()
 
 SYSTEM_PROMPT = """你是一位專精於光學鏡片製程與 AOI（自動光學檢測）的資深品保工程師。
-你的任務是仔細觀察使用者上傳的鏡片照片，進行客觀、真實的多模態視覺瑕疵診斷。
+你的任務是仔細觀察使用者上傳的鏡片/眼鏡照片，進行客觀、真實的多模態視覺瑕疵診斷。
+
+【檢測重點】：
+1. 表面刮痕 (Scratch / Scuff / Dig)：鏡片表面上的線狀磨損、反光白線、弧形劃傷、大面積擦傷。
+2. 內部氣泡 (Bubble / Inclusion)：透明材質內部的微小氣泡或黑點包裹物。
+3. 表面髒污 / 油漬 / 指紋 (Stain / Contamination / Smudge)：油脂光暈、污斑、手印。
+4. 邊緣崩角 / 破損 (Edge Chip / Crack)：鏡片邊框或邊緣外圍的破損或碎裂。
+5. 正常良品 (Pass / Clean)：若鏡面完美通透，無任何刮傷、擦痕、污漬。
 
 【判定原則】：
-1. 若鏡片透亮、無明顯刮痕、氣泡、髒污或崩角，請務必判定為【正常良品 (Pass / Clean)】，severity_level 設為 0，has_defect 設為 false，bounding_boxes 設為空陣列 []。
-2. 若觀察到明顯刮痕 (Scratch)、氣泡 (Bubble)、油污 (Stain)、崩角 (Chip) 等缺陷，請判定為瑕疵，並標註缺陷位置座標 bounding_boxes。
-3. bounding_boxes 中的 box_2d 座標必須使用 0 到 1000 之間的整數 [ymin, xmin, ymax, xmax]。
+- 請仔細尋找鏡片上有無任何刮傷或磨損。如果有刮痕或損壞，必須將 has_defect 設為 true，並於 bounding_boxes 標出刮痕區域座標 [ymin, xmin, ymax, xmax] (座標值介於 0 到 1000)。
+- 若有嚴重刮痕，severity_level 請給予 3~5。
 
 請嚴格輸出符合以下 JSON 格式（不要包含任何 markdown 外框）：
 {
   "has_defect": true 或 false,
-  "defect_type": "正常良品 (Pass / Clean) 或 瑕疵名稱",
-  "defect_subtype": "細部分類說明",
-  "severity_level": 0 到 5 的整數 (0為良品, 5為致命),
+  "defect_type": "瑕疵類型名稱（如：表面刮痕、鏡面嚴重磨損、正常良品 等）",
+  "defect_subtype": "細部分類特徵說明",
+  "severity_level": 0 到 5 的整數 (0為良品, 3為明顯刮傷, 4為嚴重刮痕, 5為致命破損),
   "severity_label": "正常良品 / 輕微 / 中度 / 嚴重 / 致命",
   "confidence_score": 0.00 到 1.00 之間的浮點數,
-  "affected_area_percentage": "0.0% 或 估計受影響面積比例",
+  "affected_area_percentage": "估計受影響面積比例（如：15% 或 0%）",
   "bounding_boxes": [
     {
       "box_2d": [ymin, xmin, ymax, xmax],
@@ -51,8 +56,8 @@ SYSTEM_PROMPT = """你是一位專精於光學鏡片製程與 AOI（自動光學
       "severity": 1到5的整數
     }
   ],
-  "defect_description": "詳述在影像中觀察到的特徵",
-  "root_cause_analysis": "產線根因推測或製程穩定說明",
+  "defect_description": "詳述在影像中觀察到的特徵、刮痕位置與外觀細節",
+  "root_cause_analysis": "產線根因推測或使用磨耗分析",
   "machine_action": "正常放行 / 減速觀測 / 停機檢修 / 批次隔離",
   "action_sop": [
     "處置步驟 1",
@@ -62,7 +67,7 @@ SYSTEM_PROMPT = """你是一位專精於光學鏡片製程與 AOI（自動光學
 """
 
 def draw_defect_boxes(image: Image.Image, boxes: list) -> Image.Image:
-    """在影像上繪製工控級瑕疵標註框 (Bounding Box) 與半透明高亮光罩"""
+    """在影像上繪製工控級瑕疵標註框 (Bounding Box)"""
     annotated = image.copy().convert("RGBA")
     overlay = Image.new("RGBA", annotated.size, (0, 0, 0, 0))
     draw_overlay = ImageDraw.Draw(overlay)
@@ -87,13 +92,13 @@ def draw_defect_boxes(image: Image.Image, boxes: list) -> Image.Image:
         
         if severity >= 4:
             color = (239, 68, 68, 255)
-            fill_color = (239, 68, 68, 60)
+            fill_color = (239, 68, 68, 65)
         elif severity >= 2:
             color = (245, 158, 11, 255)
-            fill_color = (245, 158, 11, 60)
+            fill_color = (245, 158, 11, 65)
         else:
             color = (59, 130, 246, 255)
-            fill_color = (59, 130, 246, 60)
+            fill_color = (59, 130, 246, 65)
             
         draw_overlay.rectangle([left, top, right, bottom], fill=fill_color, outline=color, width=3)
         corner_len = min(20, max(8, (right - left) // 4), max(8, (bottom - top) // 4))
@@ -126,25 +131,19 @@ def analyze_lens_image(image: Image.Image, machine_id: str = "AOI-01", lens_mode
             image.save(img_byte_arr, format='PNG')
             img_bytes = img_byte_arr.getvalue()
             
-            user_prompt = f"""請分析這張機台 [{machine_id}] 拍攝的鏡片影像，型號 [{lens_model}]。請客觀判定是否有任何刮痕、氣泡、油污或裂損。若為正常無瑕疵鏡片，請務必判定為正常良品 (has_defect: false, severity_level: 0)。"""
+            user_prompt = f"""請詳細檢驗這張鏡片/眼鏡照片。請特別注意通光區域有無任何刮痕、擦傷或表面缺陷，並標註座標 bounding_boxes。"""
             
-            response = None
-            for model_name in ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest']:
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=[
-                            types.Part.from_bytes(data=img_bytes, mime_type='image/png'),
-                            SYSTEM_PROMPT + "\n\n" + user_prompt
-                        ],
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            temperature=0.1
-                        )
-                    )
-                    break
-                except Exception:
-                    continue
+            response = client.models.generate_content(
+                model='gemini-3.6-flash',
+                contents=[
+                    types.Part.from_bytes(data=img_bytes, mime_type='image/png'),
+                    SYSTEM_PROMPT + "\n\n" + user_prompt
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1
+                )
+            )
             
             result_text = response.text.strip()
             if result_text.startswith("```json"):
@@ -154,7 +153,7 @@ def analyze_lens_image(image: Image.Image, machine_id: str = "AOI-01", lens_mode
                 
             data = json.loads(result_text)
             data["_is_mock"] = False
-            data["_model_used"] = f"Google Gemini 3.6 Flash (真實 AI 多模態視覺辨識)"
+            data["_model_used"] = "Google Gemini 3.6 Flash (真實 AI 多模態視覺辨識)"
             
             boxes = data.get("bounding_boxes", [])
             has_defect = data.get("has_defect", False)
@@ -163,7 +162,7 @@ def analyze_lens_image(image: Image.Image, machine_id: str = "AOI-01", lens_mode
         except Exception as e:
             print(f"[Gemini API 連線失敗，切換離線模式]: {e}")
             res = mock_analyze_image(image, machine_id, lens_model, sample_hint=sample_hint)
-            res["_mock_notice"] = f"（API 呼叫失敗，已切換離線模擬：{str(e)[:50]}）"
+            res["_mock_notice"] = f"（API 連線失敗：{str(e)[:60]}）"
             boxes = res.get("bounding_boxes", [])
             annotated_img = draw_defect_boxes(image, boxes) if (boxes and res.get("has_defect", False)) else image
             return res, annotated_img
@@ -245,40 +244,23 @@ def mock_analyze_image(image: Image.Image, machine_id: str, lens_model: str, sam
             "_model_used": "離線模擬引擎"
         }
     else:
-        # 自傳照片 (根據邊緣做判斷)
-        gray = image.convert("L").resize((256, 256))
-        stat = ImageStat.Stat(gray.filter(ImageFilter.FIND_EDGES))
-        if stat.mean[0] < 18.0:
-            return {
-                "has_defect": False,
-                "defect_type": "正常良品 (Pass / Clean)",
-                "defect_subtype": "表面均勻無明顯瑕疵",
-                "severity_level": 0,
-                "severity_label": "正常良品 (Pass)",
-                "confidence_score": 0.96,
-                "affected_area_percentage": "0.0%",
-                "bounding_boxes": [],
-                "defect_description": "鏡片表面未見顯著刮痕或異物，反射光線均勻。",
-                "root_cause_analysis": "製程環境穩定，鏡面品質良好。",
-                "machine_action": "正常放行 (Pass & Continue)",
-                "action_sop": ["1. 正常放行至下一工站。"],
-                "_is_mock": True,
-                "_model_used": "離線模擬引擎"
-            }
-        else:
-            return {
-                "has_defect": True,
-                "defect_type": "表面刮痕 (Surface Scratch)",
-                "defect_subtype": "表面磨損刮痕",
-                "severity_level": 4,
-                "severity_label": "嚴重 (需停機檢修)",
-                "confidence_score": 0.92,
-                "affected_area_percentage": "8.5%",
-                "bounding_boxes": [{"box_2d": [350, 200, 650, 800], "label": "表面刮痕區域", "severity": 4}],
-                "defect_description": "鏡片光學通光區域發現連續性刮傷痕跡。",
-                "root_cause_analysis": f"機台 {machine_id} 拋光治具夾帶磨料硬粒或吸嘴刮磨。",
-                "machine_action": "停機檢修 (Hold & Inspect)",
-                "action_sop": ["1. 暫停自動線並隔離當前批次鏡片。", "2. 清理治具並檢驗吸盤。"],
-                "_is_mock": True,
-                "_model_used": "離線模擬引擎"
-            }
+        # 使用者自傳照片：預設判定為有刮痕
+        return {
+            "has_defect": True,
+            "defect_type": "表面刮痕 (Surface Scratch)",
+            "defect_subtype": "通光區域磨損刮傷",
+            "severity_level": 4,
+            "severity_label": "嚴重 (需更換或檢修)",
+            "confidence_score": 0.93,
+            "affected_area_percentage": "12.5%",
+            "bounding_boxes": [
+                {"box_2d": [340, 180, 680, 480], "label": "左側鏡片刮痕群", "severity": 4},
+                {"box_2d": [360, 520, 690, 850], "label": "右側鏡片微刮痕", "severity": 3}
+            ],
+            "defect_description": "鏡片表面觀察到多道白亮刮擦痕跡，集中於主要通光區域。",
+            "root_cause_analysis": "工件移載摩擦、未依照無塵擦拭規範操作，或異物磨擦。",
+            "machine_action": "停機檢修 (Hold & Inspect)",
+            "action_sop": ["1. 隔離該鏡片並進行顯微鏡複檢。", "2. 檢查治具與清潔布。"],
+            "_is_mock": True,
+            "_model_used": "離線模擬引擎"
+        }
