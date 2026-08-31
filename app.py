@@ -153,28 +153,44 @@ with st.sidebar:
 st.markdown('<div class="main-title">🔬 光學鏡片瑕疵多模態分析與診斷助手</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">基於 Google Gemini 多模態視覺技術 (Multimodal Vision) 打造之智慧光學產線 AOI 瑕疵快速判定、<b>視覺位置標註 (Bounding Box)</b> 與 SOP 處置系統</div>', unsafe_allow_html=True)
 
+# 初始化 Session State
+if "active_img" not in st.session_state:
+    default_sample = "samples/clean.png"
+    if os.path.exists(default_sample):
+        st.session_state["active_img"] = Image.open(default_sample)
+        st.session_state["sample_tag"] = "clean"
+        st.session_state["img_id"] = "preset_clean"
+
 # 影像來源選擇
 tab_upload, tab_presets = st.tabs(["📂 上傳鏡片照片 / 拍照檢測", "🌟 點選內建預設測試樣本庫 (One-Click Demo)"])
-
-selected_image = None
-sample_tag = None
 
 with tab_upload:
     col_up1, col_up2 = st.columns([1, 1])
     with col_up1:
-        uploaded_file = st.file_uploader("選擇鏡片檢測相片 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
-        if uploaded_file:
-            selected_image = Image.open(uploaded_file)
-            sample_tag = "custom_upload"
-            st.session_state["active_img"] = selected_image
-            st.session_state["sample_tag"] = sample_tag
+        uploaded_file = st.file_uploader("選擇鏡片檢測相片 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"], key="lens_uploader")
+        if uploaded_file is not None:
+            current_upload_id = f"upload_{uploaded_file.name}_{uploaded_file.size}"
+            if st.session_state.get("last_upload_id") != current_upload_id:
+                st.session_state["last_upload_id"] = current_upload_id
+                st.session_state["active_img"] = Image.open(uploaded_file)
+                st.session_state["sample_tag"] = "custom_upload"
+                st.session_state["img_id"] = current_upload_id
+                st.session_state.pop("last_report", None)
+                st.session_state.pop("annotated_img", None)
+                st.rerun()
+
     with col_up2:
-        camera_photo = st.camera_input("或使用鏡頭拍照")
-        if camera_photo:
-            selected_image = Image.open(camera_photo)
-            sample_tag = "camera_capture"
-            st.session_state["active_img"] = selected_image
-            st.session_state["sample_tag"] = sample_tag
+        camera_photo = st.camera_input("或使用鏡頭拍照", key="lens_camera")
+        if camera_photo is not None:
+            current_cam_id = f"cam_{camera_photo.size}_{camera_photo.name}"
+            if st.session_state.get("last_cam_id") != current_cam_id:
+                st.session_state["last_cam_id"] = current_cam_id
+                st.session_state["active_img"] = Image.open(camera_photo)
+                st.session_state["sample_tag"] = "camera_capture"
+                st.session_state["img_id"] = current_cam_id
+                st.session_state.pop("last_report", None)
+                st.session_state.pop("annotated_img", None)
+                st.rerun()
 
 with tab_presets:
     st.markdown("##### 點選以下光學鏡片常見瑕疵樣本進行即時測試：")
@@ -193,15 +209,20 @@ with tab_presets:
             if os.path.exists(p_path):
                 thumb = Image.open(p_path)
                 st.image(thumb, use_container_width=True)
-            if st.button(f"👉 {p_name}", key=f"btn_{p_hint}", use_container_width=True):
-                selected_image = Image.open(p_path)
-                sample_tag = p_hint
-                st.session_state["active_img"] = selected_image
+            
+            is_current = (st.session_state.get("sample_tag") == p_hint)
+            btn_label = f"✅ {p_name}" if is_current else f"👉 {p_name}"
+            if st.button(btn_label, key=f"btn_{p_hint}", use_container_width=True):
+                st.session_state["active_img"] = Image.open(p_path)
                 st.session_state["sample_tag"] = p_hint
+                st.session_state["img_id"] = f"preset_{p_hint}"
+                # 清除舊報告，讓切換樣本時即時自動觸發全新分析
+                st.session_state.pop("last_report", None)
+                st.session_state.pop("annotated_img", None)
+                st.rerun()
 
-if "active_img" in st.session_state and selected_image is None:
-    selected_image = st.session_state["active_img"]
-    sample_tag = st.session_state.get("sample_tag", "clean")
+selected_image = st.session_state.get("active_img")
+sample_tag = st.session_state.get("sample_tag", "clean")
 
 st.markdown("---")
 
@@ -211,9 +232,11 @@ if selected_image is not None:
     
     with col_img:
         st.markdown("#### 📸 光學檢測影像與瑕疵標註")
-        run_btn = st.button("⚡ 啟動多模態 AI 瑕疵診斷與視覺標註", type="primary", use_container_width=True)
+        run_btn = st.button("⚡ 重新啟動多模態 AI 瑕疵診斷", type="primary", use_container_width=True)
         
-        if run_btn or "last_report" not in st.session_state:
+        need_analysis = run_btn or ("last_report" not in st.session_state)
+        
+        if need_analysis:
             with st.spinner("🤖 正在進行多模態視覺特徵辨識與座標標註..."):
                 time.sleep(0.3)
                 raw_res = analyze_lens_image(
