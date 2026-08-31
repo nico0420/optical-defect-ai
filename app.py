@@ -344,4 +344,7 @@ if selected_image is not None:
                 
             st.caption(f"✨ 運算引擎：{report.get('_model_used', 'Google Gemini 3.6 Flash')}")
 else:
-    st.info("👆 請從上方選擇上傳一張鏡片照片，或切換至「點選內建預設測試樣本庫」開始檢測。")
+    if source_mode == "📂 上傳鏡片相片檢測":
+        st.info("👆 請從上方選擇上傳一張鏡片相片（或開啟鏡頭拍照），開始進行多模態 AI 檢測。")
+    else:
+        st.info("👆 請點選上方任一瑕疵樣本按鈕（如：👉 測試 表面刮痕）立即啟動 AI 診斷與 HUD 畫框。")
