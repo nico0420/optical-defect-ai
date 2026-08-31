@@ -153,20 +153,33 @@ with st.sidebar:
 st.markdown('<div class="main-title">🔬 光學鏡片瑕疵多模態分析與診斷助手</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">基於 Google Gemini 多模態視覺技術 (Multimodal Vision) 打造之智慧光學產線 AOI 瑕疵快速判定、<b>視覺位置標註 (Bounding Box)</b> 與 SOP 處置系統</div>', unsafe_allow_html=True)
 
-# 影像來源選擇
-tab_upload, tab_presets = st.tabs(["📂 上傳鏡片照片 / 拍照檢測", "🌟 點選內建預設測試樣本庫 (One-Click Demo)"])
+# 影像來源選擇模式切換 (使用 Radio 確保切換時觸發 Python 狀態同步)
+source_mode = st.radio(
+    "選擇影像來源",
+    ["📂 上傳鏡片照片 / 拍照檢測", "🌟 點選內建預設測試樣本庫 (One-Click Demo)"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
-with tab_upload:
+if source_mode == "📂 上傳鏡片照片 / 拍照檢測":
     col_up1, col_up2 = st.columns([1, 1])
     with col_up1:
         uploaded_file = st.file_uploader("選擇鏡片檢測相片 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"], key="lens_uploader")
         if uploaded_file is not None:
             current_upload_id = f"upload_{uploaded_file.name}_{uploaded_file.size}"
-            if st.session_state.get("last_upload_id") != current_upload_id:
-                st.session_state["last_upload_id"] = current_upload_id
+            if st.session_state.get("img_id") != current_upload_id:
                 st.session_state["active_img"] = Image.open(uploaded_file)
                 st.session_state["sample_tag"] = "custom_upload"
                 st.session_state["img_id"] = current_upload_id
+                st.session_state.pop("last_report", None)
+                st.session_state.pop("annotated_img", None)
+                st.rerun()
+        else:
+            # 若使用者清除了上傳照片且目前非相機模式，清空狀態
+            if st.session_state.get("img_id", "").startswith("upload_"):
+                st.session_state.pop("active_img", None)
+                st.session_state.pop("sample_tag", None)
+                st.session_state.pop("img_id", None)
                 st.session_state.pop("last_report", None)
                 st.session_state.pop("annotated_img", None)
                 st.rerun()
@@ -175,8 +188,7 @@ with tab_upload:
         camera_photo = st.camera_input("或使用鏡頭拍照", key="lens_camera")
         if camera_photo is not None:
             current_cam_id = f"cam_{camera_photo.size}_{camera_photo.name}"
-            if st.session_state.get("last_cam_id") != current_cam_id:
-                st.session_state["last_cam_id"] = current_cam_id
+            if st.session_state.get("img_id") != current_cam_id:
                 st.session_state["active_img"] = Image.open(camera_photo)
                 st.session_state["sample_tag"] = "camera_capture"
                 st.session_state["img_id"] = current_cam_id
@@ -184,7 +196,8 @@ with tab_upload:
                 st.session_state.pop("annotated_img", None)
                 st.rerun()
 
-with tab_presets:
+else:
+    # 預設樣本庫模式
     st.markdown("##### 點選以下光學鏡片常見瑕疵樣本進行即時測試：")
     p_cols = st.columns(5)
     
@@ -202,7 +215,7 @@ with tab_presets:
                 thumb = Image.open(p_path)
                 st.image(thumb, use_container_width=True)
             
-            is_current = (st.session_state.get("sample_tag") == p_hint)
+            is_current = (st.session_state.get("sample_tag") == p_hint and st.session_state.get("img_id", "").startswith("preset_"))
             btn_label = f"✅ {p_name}" if is_current else f"👉 {p_name}"
             if st.button(btn_label, key=f"btn_{p_hint}", use_container_width=True):
                 st.session_state["active_img"] = Image.open(p_path)
@@ -214,7 +227,7 @@ with tab_presets:
                 st.rerun()
 
 selected_image = st.session_state.get("active_img")
-sample_tag = st.session_state.get("sample_tag", "clean")
+sample_tag = st.session_state.get("sample_tag", "custom_upload")
 
 st.markdown("---")
 
