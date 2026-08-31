@@ -74,48 +74,80 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 側邊欄設定
+# 側邊欄設定 (專案作品集展示與技術規格)
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/microscope.png", width=64)
-    st.markdown("### ⚙️ 系統與產線設定")
+    st.markdown("## 🔬 Optical Defect AI")
+    st.caption("光學鏡片多模態 AOI 智慧診斷與標註系統")
     
+    # 金鑰自動靜默載入 (不直接曝露在畫面上)
     default_key = get_default_api_key()
-    api_key = st.text_input(
-        "Google Gemini API Key",
-        value=default_key,
-        type="password",
-        help="支援透過 Streamlit Cloud Secrets 自動載入"
-    )
     
-    if api_key:
-        st.markdown('<div class="api-badge">✨ 已連接 Google Gemini 3.6 視覺大模型</div>', unsafe_allow_html=True)
+    # 系統連線狀態徽章
+    if default_key:
+        st.markdown('''
+        <div style="background-color: #ECFDF5; border: 1px solid #10B981; color: #047857; padding: 8px 12px; border-radius: 8px; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.8rem;">
+            🟢 <b>Gemini 3.6 Flash 多模態引擎連線中</b><br>
+            <span style="font-size: 0.76rem; color: #065F46; font-weight: normal;">• 即時雲端視覺推理 & 空間定位</span>
+        </div>
+        ''', unsafe_allow_html=True)
     else:
-        st.warning("未填寫 API Key 時將使用離線模擬模式")
-        
+        st.markdown('''
+        <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 8px 12px; border-radius: 8px; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.8rem;">
+            🟡 <b>離線智慧模擬引擎 (Demo Mode)</b><br>
+            <span style="font-size: 0.76rem; color: #78350F; font-weight: normal;">• 雙模式容錯展示，無須連網</span>
+        </div>
+        ''', unsafe_allow_html=True)
+
     st.markdown("---")
-    st.markdown("#### 🏭 產線資訊")
-    machine_id = st.selectbox(
-        "AOI 檢測機台編號",
-        ["AOI-LENS-01 (研磨線)", "AOI-LENS-02 (射出成型)", "AOI-LENS-03 (鍍膜線)", "AOI-ASSY-05 (組裝線)"],
-        index=0
-    )
     
-    lens_model = st.selectbox(
-        "鏡片規格型號",
-        [
-            "7P Mobile 主鏡頭鏡片 (COP 塑膠)",
-            "8P 潛望式長焦光學鏡片 (稜鏡+玻璃)",
-            "AR/VR Pancake 摺疊光路鏡片",
-            "車載 LiDAR 車規級高透光學鏡片"
-        ],
-        index=0
-    )
+    # 作品技術亮點 (面試展示超加分)
+    st.markdown("### 🌟 核心技術亮點")
+    st.markdown("""
+    - 🧠 **Multimodal Vision**：大模型光學特徵與根因推理
+    - 📐 **Spatial Grounding**：2D Bounding Box 座標輸出
+    - 🎨 **HUD Overlay**：Pillow RGBA 標註與警示框渲染
+    - 📊 **Structured JSON**：工業級輸出，無縫對接 MES/ERP
+    - 🛡️ **Fail-Safe 架構**：API 斷網自動切換離線模擬
+    """)
     
-    lot_id = st.text_input("批次代碼 (LOT ID)", "LOT-2026-A883")
-    inspection_std = st.selectbox(
-        "檢驗標準規範",
-        ["ISO 10110 光學製圖與表面疵病標準", "MIL-PRF-13830B 美軍標光學表面", "Class 100 廠內超精密標準"]
-    )
+    st.markdown("---")
+    
+    # 支援缺陷清單
+    st.markdown("### 🎯 支援檢測瑕疵類型")
+    st.markdown("""
+    - 🔴 **表面刮痕 (Scratch)**：通光區磨損
+    - 🟠 **內部氣泡 (Bubble)**：射出夾氣缺陷
+    - 🟡 **表面油污 (Stain)**：有機油脂光暈
+    - 🟣 **邊緣崩角 (Chip)**：脫模應力碎裂
+    - 🟢 **正常良品 (Pass)**：零瑕疵自動放行
+    """)
+    
+    st.markdown("---")
+    
+    # 產線與進階設定 (收合面板，不干擾主畫面)
+    with st.expander("🏭 產線規格與參數 (選填)", expanded=False):
+        machine_id = st.selectbox(
+            "AOI 機台編號",
+            ["AOI-LENS-01 (研磨線)", "AOI-LENS-02 (射出成型)", "AOI-LENS-03 (鍍膜線)", "AOI-ASSY-05 (組裝線)"],
+            index=0
+        )
+        lens_model = st.selectbox(
+            "鏡片規格",
+            ["7P Mobile 主鏡頭鏡片 (COP 塑膠)", "8P 潛望式長焦光學鏡片", "AR/VR Pancake 摺疊光路鏡片", "車載 LiDAR 高透鏡片"],
+            index=0
+        )
+        lot_id = st.text_input("批次代碼 (LOT ID)", "LOT-2026-A883")
+    
+    # 金鑰設定 (收合面板，隱密保護)
+    with st.expander("🔐 自訂 API 金鑰 (選填)", expanded=False):
+        custom_key = st.text_input(
+            "手動覆蓋金鑰",
+            value="",
+            type="password",
+            help="留空將自動讀取系統環境變數或 Secrets"
+        )
+        api_key = custom_key.strip() if custom_key.strip() else default_key
 
 # 主頁面標題
 st.markdown('<div class="main-title">🔬 光學鏡片瑕疵多模態分析與診斷助手</div>', unsafe_allow_html=True)
