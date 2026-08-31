@@ -153,14 +153,6 @@ with st.sidebar:
 st.markdown('<div class="main-title">🔬 光學鏡片瑕疵多模態分析與診斷助手</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">基於 Google Gemini 多模態視覺技術 (Multimodal Vision) 打造之智慧光學產線 AOI 瑕疵快速判定、<b>視覺位置標註 (Bounding Box)</b> 與 SOP 處置系統</div>', unsafe_allow_html=True)
 
-# 初始化 Session State
-if "active_img" not in st.session_state:
-    default_sample = "samples/clean.png"
-    if os.path.exists(default_sample):
-        st.session_state["active_img"] = Image.open(default_sample)
-        st.session_state["sample_tag"] = "clean"
-        st.session_state["img_id"] = "preset_clean"
-
 # 影像來源選擇
 tab_upload, tab_presets = st.tabs(["📂 上傳鏡片照片 / 拍照檢測", "🌟 點選內建預設測試樣本庫 (One-Click Demo)"])
 
