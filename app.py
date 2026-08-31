@@ -99,16 +99,6 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # 作品技術亮點
-    st.markdown("#### 🌟 核心技術亮點")
-    st.markdown("""
-    - 🧠 **Multimodal Vision**：大模型光學特徵與根因推理
-    - 📐 **Spatial Grounding**：2D Bounding Box 座標輸出
-    - 🎨 **HUD Overlay**：Pillow RGBA 標註與警示框渲染
-    - 📊 **Structured JSON**：工業級輸出，無縫對接 MES/ERP
-    - 🛡️ **Fail-Safe 架構**：API 斷網自動切換離線模擬
-    """)
-    
     st.markdown("---")
     
     # 支援缺陷清單
@@ -354,33 +344,4 @@ if selected_image is not None:
                 
             st.caption(f"✨ 運算引擎：{report.get('_model_used', 'Google Gemini 3.6 Flash')}")
 else:
-    # 初始未選取時的精美空狀態與快速點選引導
-    with st.container(border=True):
-        st.markdown("""
-        <div style="text-align: center; padding: 24px 10px;">
-            <div style="font-size: 2.2rem; margin-bottom: 8px;">🔬</div>
-            <div style="font-size: 1.25rem; font-weight: 700; color: #1E293B;">尚未選擇檢測影像</div>
-            <div style="font-size: 0.95rem; color: #64748B; margin-top: 6px; margin-bottom: 20px;">
-                請從上方上傳鏡片照片，或直接點選下方推薦樣本立即體驗 <b>秒級多模態視覺辨識與 2D 瑕疵畫框</b>：
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 快速引導 5 大按鈕
-        q_cols = st.columns(5)
-        quick_presets = [
-            ("👉 表面刮痕", "samples/scratch.png", "scratch"),
-            ("👉 內部氣泡", "samples/bubble.png", "bubble"),
-            ("👉 表面油污", "samples/stain.png", "stain"),
-            ("👉 邊緣崩角", "samples/chip.png", "chip"),
-            ("👉 正常良品", "samples/clean.png", "clean")
-        ]
-        for idx, (q_name, q_path, q_hint) in enumerate(quick_presets):
-            with q_cols[idx]:
-                if st.button(q_name, key=f"quick_{q_hint}"):
-                    st.session_state["active_img"] = Image.open(q_path)
-                    st.session_state["sample_tag"] = q_hint
-                    st.session_state["img_id"] = f"preset_{q_hint}"
-                    st.session_state.pop("last_report", None)
-                    st.session_state.pop("annotated_img", None)
-                    st.rerun()
+    st.info("👆 請從上方選擇上傳一張鏡片照片，或切換至「點選內建預設測試樣本庫」開始檢測。")
